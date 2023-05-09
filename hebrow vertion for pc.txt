@@ -1,0 +1,102 @@
+import tkinter as tk
+from datetime import datetime, timedelta
+import subprocess
+from tkinter import messagebox, simpledialog
+
+import win32con
+import win32gui
+import win32console
+
+class LogoutApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("טיימר לכיבוי המחשב")
+        master.configure(bg='#ffcb05')  # set the background color of the window
+
+
+        console_window = win32console.GetConsoleWindow()
+        hwnd = win32gui.FindWindowEx(console_window, 0, "Edit", None)
+
+        # Hide the console window
+        win32gui.ShowWindow(console_window, win32con.SW_HIDE)
+
+        self.cancel_button = tk.Button(master, text="ביטול כיבוי", bg='#2F44D7', fg='#ffffff', font=('Arial', 14),
+                                       command=self.cancel_shutdown)
+        self.cancel_button.pack(side=tk.BOTTOM, padx=10, pady=10)
+
+        # Create a listbox widget
+        self.listbox = tk.Listbox(master, height=10, yscrollcommand=True, bg='#fffcf5', fg='#e60000',
+                                  font=('Arial', 14))
+
+        # Create a list of all times in the day in 15-minute intervals
+        times = []
+        now = datetime.now()
+        start_time = datetime(now.year, now.month, now.day, 0, 0, 0)
+        end_time = start_time + timedelta(days=1)
+        current_time = start_time
+        while current_time < end_time:
+            if current_time.hour < 12:
+                times.append(current_time.strftime("%H:%M %p") + " בבוקר/צהריים ")
+            else:
+                times.append(current_time.strftime("%H:%M %p") + " אחרי צהריים/בערב ")
+            current_time += timedelta(minutes=15)
+        times.reverse()  # Reverse the order of the times list
+
+        # Insert the list of logout times into the listbox
+        for time in times:
+            self.listbox.insert(tk.END, time)
+
+        # Create a label and listbox for displaying the logout times
+        self.label = tk.Label(master, text="בחר זמן כיבוי למחשב לפי תצוגת 24 שעות:", bg='#ffcb05', fg='#e60000',
+                              font=('Arial', 16))
+        self.label.pack()
+
+        self.listbox = tk.Listbox(master, height=10, yscrollcommand=True, bg='#fffcf5', fg='#e60000',
+                                  font=('Arial', 14))
+        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Insert the list of logout times into the listbox
+        for time in times:
+            self.listbox.insert(tk.END, time)
+
+        # Create a button to initiate the logout process
+        self.logout_button = tk.Button(master, text="אישור כיבוי", bg='#e60000', fg='#ffffff', font=('Arial', 14),
+                                       command=self.logout)
+        self.logout_button.pack(side=tk.BOTTOM, padx=10, pady=10)
+
+        # Create a label for the scrolling instructions
+        self.scroll_label = tk.Label(master, text="גלול את הרשימה לעוד זמנים ברווחים של 15 דקות", bg='#ffcb05',
+                                     fg='#e60000', font=('Arial', 12))
+        self.scroll_label.pack(side=tk.RIGHT)
+
+    def logout(self):
+        selected_time = self.listbox.get(self.listbox.curselection())
+        selected_time = selected_time.split()[0][:5]  # keep only the first 5 characters (hh:mm)
+        now = datetime.now()
+        logout_time = now.replace(hour=int(selected_time[:2]), minute=int(selected_time[3:]), second=0, microsecond=0)
+        if logout_time < now:
+            logout_time += timedelta(days=1)
+        seconds = int((logout_time - now).total_seconds())
+
+        # Cancel any previously scheduled shutdowns
+        subprocess.call('shutdown /a', shell=True)
+
+        # Start the shutdown timer in a background process
+        cmd = f'shutdown /s /t {seconds}'
+        subprocess.Popen(cmd, shell=True)
+
+        selected_time_msg = f"הזמן שנקבע לכיבוי הוא: {logout_time.strftime('%H:%M')} ."
+        messagebox.showinfo("Logout Timer", selected_time_msg)
+
+    def cancel_shutdown(self):
+        password = simpledialog.askstring("סיסמה", "הקש את הסיסמה:", show='*')
+        if password == "adminpassword":
+            subprocess.call('shutdown /a', shell=True)
+            messagebox.showinfo("ביטול כיבוי", "הכיבוי בוטל בהצלחה.")
+        else:
+            messagebox.showerror("ביטול כיבוי", "סיסמה לא נכונה ,הכיבוי לא בוטל!!!.")
+
+
+root = tk.Tk()
+app = LogoutApp(root)
+root.mainloop()
